@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import functools
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Set
 
 from .exceptions import InjectionRiskError
-from .patterns import COMPILED_PATTERNS, score_to_severity
+from .patterns import COMPILED_PATTERNS, CATEGORIES, score_to_severity
 
 
 @dataclass
@@ -23,6 +23,10 @@ class ScanResult:
     def is_safe(self) -> bool:
         return self.severity == "SAFE"
 
+    def matches_by_category(self, category: str) -> List[dict]:
+        """Return only matches from a specific category."""
+        return [m for m in self.matches if m.get("category") == category]
+
     def __repr__(self) -> str:
         return (
             f"ScanResult(severity={self.severity!r}, score={self.risk_score}, "
@@ -36,24 +40,50 @@ class PromptScanner:
     Args:
         threshold:       Severity level at which to raise InjectionRiskError.
                          One of: "LOW", "MEDIUM", "HIGH", "CRITICAL".
-                         Default is "MEDIUM" — blocks medium and above.
+                         Default is "MEDIUM" -- blocks medium and above.
         custom_patterns: Optional list of additional pattern dicts to add.
                          Each must have: name, pattern (regex str), weight (int).
+        categories:      Optional set of categories to scan. Default is all
+                         categories EXCEPT "pii". Pass {"pii"} or
+                         CATEGORIES to include PII scanning.
+        exclude_categories: Optional set of categories to exclude from scanning.
+                         Cannot be used together with `categories`.
     """
 
     SEVERITY_ORDER = ["SAFE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+
+    # Default: scan everything except PII (PII is opt-in)
+    DEFAULT_CATEGORIES = CATEGORIES - {"pii"}
 
     def __init__(
         self,
         threshold: str = "MEDIUM",
         custom_patterns: Optional[List[dict]] = None,
+        categories: Optional[Set[str]] = None,
+        exclude_categories: Optional[Set[str]] = None,
     ):
         import re
 
         if threshold not in self.SEVERITY_ORDER:
             raise ValueError(f"threshold must be one of {self.SEVERITY_ORDER}")
+        if categories is not None and exclude_categories is not None:
+            raise ValueError("Cannot specify both 'categories' and 'exclude_categories'")
+
         self.threshold = threshold
-        self._patterns = list(COMPILED_PATTERNS)
+
+        # Determine active categories
+        if categories is not None:
+            self._active_categories = set(categories)
+        elif exclude_categories is not None:
+            self._active_categories = CATEGORIES - set(exclude_categories)
+        else:
+            self._active_categories = self.DEFAULT_CATEGORIES
+
+        # Filter patterns by active categories
+        self._patterns = [
+            p for p in COMPILED_PATTERNS
+            if p.get("category", "unknown") in self._active_categories
+        ]
 
         if custom_patterns:
             for p in custom_patterns:

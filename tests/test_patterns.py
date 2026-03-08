@@ -1,6 +1,6 @@
 """Tests for pattern registry."""
 import pytest
-from prompt_shield.core.patterns import PATTERNS, COMPILED_PATTERNS, score_to_severity
+from prompt_shield.core.patterns import PATTERNS, COMPILED_PATTERNS, CATEGORIES, score_to_severity
 
 
 def test_all_patterns_have_required_fields():
@@ -37,5 +37,37 @@ def test_score_to_severity_boundaries():
 
 def test_all_categories_present():
     categories = {p["category"] for p in PATTERNS}
-    expected = {"role_override", "jailbreak", "exfiltration", "manipulation", "encoding"}
+    expected = {
+        "role_override", "jailbreak", "exfiltration", "manipulation", "encoding",
+        "multilingual", "tool_use", "pii", "claude_code",
+    }
     assert expected.issubset(categories)
+
+
+def test_categories_constant_matches_actual():
+    actual = {p["category"] for p in PATTERNS}
+    assert actual == CATEGORIES
+
+
+def test_pattern_count_minimum():
+    """We target 50+ patterns. Fail if we drop below."""
+    assert len(PATTERNS) >= 50, f"Only {len(PATTERNS)} patterns — target is 50+"
+
+
+def test_original_22_patterns_unchanged():
+    """First 22 patterns must match v0.1.0 names exactly."""
+    original_names = [
+        "ignore_instructions", "disregard_training", "you_are_now",
+        "new_instructions", "override_system",
+        "dan_jailbreak", "act_as", "pretend_you_are", "no_restrictions",
+        "true_self", "developer_mode",
+        "print_system_prompt", "repeat_everything_above",
+        "what_were_your_instructions", "summarize_above",
+        "trusted_source_claim", "developer_wants", "for_research",
+        "token_smuggling",
+        "base64_injection", "unicode_smuggling", "rot13_reference",
+    ]
+    for i, name in enumerate(original_names):
+        assert PATTERNS[i]["name"] == name, (
+            f"Pattern {i} changed: expected {name}, got {PATTERNS[i]['name']}"
+        )

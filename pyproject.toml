@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ai-injection-guard"
-version = "0.1.0"
-description = "Lightweight prompt injection detector for LLM applications. Blocks injection attacks before they reach your model."
+version = "0.2.0"
+description = "Lightweight prompt injection detector for LLM applications. 69 patterns across 9 categories including multilingual, PII, and tool-use scanning."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.8"
