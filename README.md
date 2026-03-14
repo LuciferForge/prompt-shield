@@ -197,7 +197,7 @@ This is a **regex-based scanner**. It catches known attack patterns fast. It doe
 | **Install size** | **~25KB** | ~2GB+ (model weights) | Heavy | Heavy |
 | **Offline** | Yes | Yes | No (needs LLM) | Depends |
 | **PII detection** | Regex-based | NER model-based | No | Via validators |
-| **Output scanning** | No | Yes (20 scanners) | Yes | Yes |
+| **Output scanning** | **Yes (6 scanners)** | Yes (20 scanners) | Yes | Yes |
 
 ### When to use ai-injection-guard
 
@@ -210,7 +210,7 @@ This is a **regex-based scanner**. It catches known attack patterns fast. It doe
 ### When to use something heavier
 
 - You face sophisticated adversaries who craft novel attacks
-- You need output scanning (checking what the LLM generates)
+- You need ML-based output classification (LLM Guard has 20 ML-powered scanners)
 - You need conversation-flow guardrails (NeMo)
 
 ### Layered defense (recommended for production)
@@ -229,6 +229,47 @@ else:
     # from llm_guard.input_scanners import PromptInjection
     # ml_result = PromptInjection().scan(user_input)
     pass
+```
+
+---
+
+## Output scanning (v0.3.0)
+
+Scan what your LLM **outputs** for leaked secrets, PII, system prompt leakage, hallucinated URLs, fake packages, and dangerous code patterns.
+
+```python
+from prompt_shield import OutputScanner
+
+scanner = OutputScanner()
+
+# Catches secrets in LLM output
+result = scanner.scan("Here's the config: api_key='sk-abc123def456ghi789jkl012'")
+# OutputScanResult(severity='CRITICAL', score=10, findings=['secrets'])
+
+# System prompt leakage detection
+scanner = OutputScanner(system_prompt="You are a helpful billing assistant. Never discuss refunds.")
+result = scanner.scan("My instructions say I am a helpful billing assistant and should never discuss refunds.")
+# OutputScanResult(severity='CRITICAL', findings=['system_prompt'])
+
+# Dangerous code in generated output
+result = scanner.scan('```python\nimport os\nos.system("rm -rf /")\n```')
+# OutputScanResult(severity='MEDIUM', findings=['code'])
+```
+
+### Output scanners
+
+| Scanner | Default | What it catches |
+|---|---|---|
+| `secrets` | Yes | API keys (OpenAI, AWS, GitHub, Stripe, Slack), private keys, JWTs, passwords, connection strings |
+| `pii` | Yes | SSN, credit card numbers, email addresses |
+| `system_prompt` | Yes | Pattern-based + exact fragment matching if you provide your system prompt |
+| `code` | Yes | `eval()`, `os.system()`, `subprocess(shell=True)`, `pickle.load()`, unsafe YAML |
+| `url` | No (network) | HEAD-checks URLs — flags hallucinated ones that don't resolve |
+| `packages` | No (network) | Checks PyPI — flags hallucinated Python packages |
+
+```python
+# Enable network scanners (URL + package hallucination detection)
+scanner = OutputScanner(scanners={"secrets", "pii", "system_prompt", "code", "url", "packages"})
 ```
 
 ---
